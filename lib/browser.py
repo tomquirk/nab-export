@@ -1,12 +1,11 @@
 import re
 from datetime import datetime
 
-from mechanize import Browser, ControlNotFoundError
-from mechanize import _http
+from mechanize import Browser, ControlNotFoundError, _http
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString
 
-from lib.tools import make_password, get_credentials, write_step, read_step
+from lib.tools import make_password, get_credentials
 from lib.tools import parse_transaction_date
 
 #
@@ -17,16 +16,21 @@ logged_in_urls = ['https://ib.nab.com.au/nabib/acctInfo_acctBal.ctl',
 
 
 def get_accounts(text):
-
+    """
+    Scrapes given text and returns a list of accounts associated with the account
+    :param text: raw HTML string of account overview
+    :return: List of dictionaries, each representing accounts
+    """
     soup = BeautifulSoup(text, "html.parser")
     account_divs = soup.select('.acctDetails')
+
     if len(account_divs) == 0:
         print('\tNo accounts found.')
         return None
 
     accounts = []
-    for div in account_divs:
 
+    for div in account_divs:
         name = div.select('a span')[0].text.strip()
         if not name:
             print('\tNo Account name found.')
@@ -78,7 +82,8 @@ def login():
     b = Browser()
     b.set_handle_robots(False)
     b.addheaders = [
-        ('User-agent', 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.1) Gecko/2008071615 Fedora/3.0.1-1.fc9 Firefox/3.0.1'),
+        ('User-agent', 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.1) '
+                       'Gecko/2008071615 Fedora/3.0.1-1.fc9 Firefox/3.0.1'),
         ('Connection', 'keep-alive'),
         ('Cache-Control', 'max-age=0'),
         ('Accept-Encoding', 'gzip, deflate, br')
@@ -94,29 +99,28 @@ def login():
     b.set_handle_refresh(_http.HTTPRefreshProcessor(), max_time=1)
 
     # Want debugging messages?
-    #b.set_debug_http(True)
+    # b.set_debug_http(True)
     b.set_debug_redirects(True)
     b.set_debug_responses(True)
 
-
-    print 'Opening main page...'
+    print('Opening main page...')
     b.open('http://www.nab.com.au')
-    print 'OK'
+    print('OK')
 
-    print 'Opening login redir page...'
+    print('Opening login redir page...')
     b.open('http://www.nab.com.au/cgi-bin/ib/301_start.pl?browser=correct')
-    print 'OK'
+    print('OK')
 
-    print 'Opening real login page...'
+    print('Opening real login page...')
     b.open('https://ib.nab.com.au/nabib/index.jsp')
-    print 'OK'
+    print('OK')
 
     b.select_form(nr=0)
     try:
         webKeyCtrl = b.form.find_control(id='webKey')
         webAlphaCtrl = b.form.find_control(id='webAlpha')
     except ControlNotFoundError:
-        print 'Cannot find necessary login controls, quitting'
+        print('Cannot find necessary login controls, quitting')
         return
 
     webKey = webKeyCtrl.value
@@ -131,7 +135,8 @@ def login():
 
     b_data = b.form.find_control(name='browserData')
     b_data.readonly = False
-    b_data.value = '1332067415674;z=-660*-600;s=1440x900x24;h=325b2e41;l=en-US;p=MacIntel;i=0;j=7;k=0;c=81d6c46c:,799e53ad:,f67180ac:,c801b011:,9ed81ce8:,68bab54a:,3db529ef,97362cfc;'
+    b_data.value = '1332067415674;z=-660*-600;s=1440x900x24;h=325b2e41;l=en-US;p=MacIntel;i=0;j=7;k=0;' \
+                   'c=81d6c46c:,799e53ad:,f67180ac:,c801b011:,9ed81ce8:,68bab54a:,3db529ef,97362cfc;'
 
     b.form.new_control('text', 'login', {'value': ''})
     b.form.fixup()
@@ -170,7 +175,6 @@ def extract_transactions(content):
         memo = details[1] if len(details) > 1 else ''
 
         def toFloat(text):
-            print(text)
             if len(text) > 0:
                 return float(text[:-3].strip().replace(',', ''))
             return None
@@ -184,6 +188,8 @@ def extract_transactions(content):
             'credit_amount': toFloat(tds[3].text),
             'balance': toFloat(tds[4].text)
         })
+
+        print payee
 
     return transactions
 
@@ -235,18 +241,22 @@ def get_servers_today_date(b):
 
 
 def query_server_transactions(b, start_date):
+
     TRANSACTIONS_PER_PAGE = 200
     end_date = get_servers_today_date(b)
     b.select_form(name='transactionHistoryForm')
-    b.form['periodModeSelect'] = ['Custom']
-    b.form['periodFromDate'] = start_date.strftime('%d/%m/%y')
+    # Setting the period doesnt work - JS is involved. 90 Days default it is :(
+    # b.form['periodModeSelect'] = ['Custom']
+    # b.form['periodFromDate'] = start_date.strftime('%d/%m/%y')
+    # periodFromDate = b.form.find_control(name='periodFromDate')
+    # periodFromDate.value = start_date.strftime('%d/%m/%y')
     b.form['transactionsPerPage'] = [str(TRANSACTIONS_PER_PAGE)]
-#https://ib.nab.com.au/nabib/transactionHistoryDisplay.ctl?filterIndicator=true
+    b.form.fixup()
+    
     URL_SUBMIT_HISTORY_FORM = 'https://ib.nab.com.au/nabib/transactionHistoryValidate.ctl'
-    # URL_SUBMIT_HISTORY_FORM = 'https://ib.nab.com.au/nabib/transactionHistoryDisplay.ctl?filterIndicator=true'
     b.form.action = URL_SUBMIT_HISTORY_FORM
 
-    print('\tGetting transactions from %s to %s' % (start_date, end_date))
+    print('\tGetting transactions from %s to %s' % (start_date.strftime('%d/%m/%y'), end_date))
     b.submit()
 
     response = b.response().read()
@@ -259,35 +269,47 @@ def query_server_transactions(b, start_date):
 
 
 def get_all_transactions(b, account, start_date):
-    TRANSACTIONS_PER_PAGE = 200
+
     b = query_server_transactions(b, start_date)
     if not b:
         return None
+
+    # get transaction count
+    cont = b.response().read()
+    soup = BeautifulSoup(cont, "html.parser")
+    rawTransCount = soup.find_all('td', text=re.compile('Found:'))
+    if rawTransCount is None:
+        print('No transaction count found, must be error')
+        return None
+    
+    # period = soup.find_all('td', text=re.compile('Period:'))[0].get_text().replace('\t', '').split('\n')
+    # actual_start_date = str(period[2].strip())
+    # if actual_start_date != start_date.strftime('%d/%m/%y'):
+    #     print('Server returned the wrong dates - %s vs expected %s' % (actual_start_date, start_date.strftime('%d/%m/%y')))
+    #     return None
+
+    transactionCount = int(rawTransCount[0].get_text().replace(',','').split(' ')[1])
+    print("%d transactions found\n" % transactionCount)
+    print("Initialising scrape...\n")
 
     trans = []
 
     # Extract and store all transactions into db
     while True:
-
+        
         cont = b.response().read()
         soup = BeautifulSoup(cont, "html.parser")
 
-        currPage = -1
+        currPage = 1
         new_trans = extract_transactions(cont)
 
         if len(new_trans) == 0:
             print('\tNo transactions found on page %s, that\'s strange.')
         else:
             trans.extend(new_trans)
-            print('\t' + str(len(new_trans)) + ' transactions added.')
+            print('\t%d transactions added.' % len(new_trans))
 
-        # get transaction count
-        rawTransCount = soup.find_all('td', text=re.compile('Found:'))
-        if rawTransCount is None:
-            print('No transaction count found, must be error')
-            return None
-
-        transactionCount = int(rawTransCount[0].get_text().split(' ')[1])
+        print('Total transactions = %d' % len(trans))
         if len(trans) >= transactionCount:
             print('No more transactions')
             break
@@ -295,8 +317,6 @@ def get_all_transactions(b, account, start_date):
         currPage += 1
 
         print('\tOpening page #%d...' % currPage)
-        b.open('https://ib.nab.com.au/nabib/transactionHistoryGetSettings.ctl#' + str(currPage))
+        b.open('https://ib.nab.com.au/nabib/transactionHistoryDisplay.ctl?fromAccount=&%s-p=%d' % (get_credentials()[2], currPage))
 
     return trans
-
-

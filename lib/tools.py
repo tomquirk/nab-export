@@ -1,5 +1,3 @@
-
-
 from datetime import datetime
 from getpass import getpass
 
@@ -41,32 +39,9 @@ def get_credentials():
         return lines
 
 
-"""See http://en.wikipedia.org/wiki/Quicken_Interchange_Format for more info."""
-def writeQIF(trans, creds):
-
-    accName = creds[2] if len(creds) > 2 else 'QIF Account'
-
-    with open('export.qif', 'w') as f:
-
-        # Write header
-        f.write('!Account\n')
-        f.write('N' + accName +'\n')
-        f.write('TCCard\n')
-        f.write('^\n')
-        f.write('!Type:CCard\n')
-
-        for t in trans:
-            f.write('C\n') # status - uncleared
-            f.write('D' + t.date + '\n') # date
-            f.write('T' + t.amount.replace('$', '') + '\n') # amount
-            f.write('M' + re.sub('\s+', ' ', t.name + ' ' + t.desc) + '\n') # memo
-            #f.write('P' + t.desc.replace('\t', ' ') + '\n') # payee
-            f.write('^\n') # end of record
-
-
 def make_password(password, key, alphabet):
 
-    # No idea why this is neeed. Seems to check for duplicates
+    # No idea why this is need. Seems to check for duplicates
     # Why they didn't do that on server? Stupid...
     for i in range(0, len(alphabet)):
         if i != alphabet.index(alphabet[i]):
@@ -75,7 +50,7 @@ def make_password(password, key, alphabet):
     # Now here's funny bit.
     # We take a character from password and corresponding (by index) character from
     # password key (which changes every page load).
-    # Then we calculate the length between pasword chararcer and corersponding
+    # Then we calculate the length between password character and corresponding
     # key character in the alphabet.
     r = []
     for i in range(0, len(password)):
@@ -85,17 +60,11 @@ def make_password(password, key, alphabet):
             ki = alphabet.index(key[i])
             ni = pi - ki
             if ni < 0:
-                ni = ni + len(alphabet)
+                ni += len(alphabet)
             r.append(alphabet[ni])
 
     return ''.join(r)
 
-# Test case for password 'encoding' function.
-#hashedPwd = make_password('qqqqqqqq', 'jTECuQc6', '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
-#expectedPwd = '7xMOWAek'
-#print hashedPwd + ' == ' + expectedPwd
-
 
 def parse_transaction_date(text):
-
     return datetime.strptime(text, '%d %b %y')

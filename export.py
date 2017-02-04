@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 
-
 from datetime import timedelta
-
-from lib import db, browser, qif
+from lib import db, browser
 
 
 def get_last_transaction_date(b, account):
@@ -95,18 +93,13 @@ def export():
                                              trans)
 
         if not trans:
-            print "\n\tNo transactions saved for the account."
+            print("\n\tNo transactions saved for the account.")
             continue
 
         db.save_transactions(account['name'],
                              account['bsb'],
                              account['acc_no'],
                              trans)
-
-        qif.save_qif_file(account['name'],
-                          account['bsb'],
-                          account['acc_no'],
-                          trans)
 
         print('\n\tSaved %s transactions' % len(trans))
 
